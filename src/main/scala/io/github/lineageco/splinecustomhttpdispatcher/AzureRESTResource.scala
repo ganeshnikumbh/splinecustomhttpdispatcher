@@ -1,5 +1,5 @@
 /*
- * Copyright 2021 ABSA Group Limited
+ * Copyright 2020 ABSA Group Limited
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,21 +14,10 @@
  * limitations under the License.
  */
 
-package io.github.ganeshnikumbh.splinecustomhttpdispatcher
+package io.github.lineageco.splinecustomhttpdispatcher
 
-object AzureSplineHeaders {
-  private val Prefix = "ABSA-Spline"
-
-  // Common
-  val ApiVersion = s"$Prefix-API-Version"
-  val ApiLTSVersion = s"$Prefix-API-LTS-Version"
-
-  // Http specific
-  val AcceptRequestEncoding = s"$Prefix-Accept-Request-Encoding"
-  val Timeout = "X-SPLINE-TIMEOUT"
-  val HttpSecurityKey = "X-FUNCTIONS-KEY"
-
-  // Kafka specific
-  val SplineEntityType = s"$Prefix-Entity-Type"
-  val SpringClassId = "__TypeId__"
+object AzureRESTResource {
+  val ExecutionPlans = "execution-plans"
+  val ExecutionEvents = "execution-events"
+  val Status = "status" 
 }

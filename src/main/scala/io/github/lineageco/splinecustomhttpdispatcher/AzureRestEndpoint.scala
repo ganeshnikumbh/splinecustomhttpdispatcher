@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.github.ganeshnikumbh.splinecustomhttpdispatcher
+package io.github.lineageco.splinecustomhttpdispatcher
 
 import org.apache.http.HttpHeaders
 import scalaj.http.{HttpRequest, HttpResponse}
@@ -24,7 +24,7 @@ import za.co.absa.spline.harvester.dispatcher.httpdispatcher.HttpConstants.Encod
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPOutputStream
 import javax.ws.rs.HttpMethod
-import io.github.ganeshnikumbh.splinecustomhttpdispatcher.AzureRestEndpoint._
+import io.github.lineageco.splinecustomhttpdispatcher.AzureRestEndpoint._
 
 class AzureRestEndpoint(val request: HttpRequest) {
 

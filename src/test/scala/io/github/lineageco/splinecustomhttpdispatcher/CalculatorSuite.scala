@@ -1,4 +1,4 @@
-package io.github.ganeshnikumbh.splinecustomhttpdispatcher
+package io.github.lineageco.splinecustomhttpdispatcher
 
 import org.scalatest.FunSpec
 

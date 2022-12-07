@@ -1,5 +1,5 @@
 
-package io.github.ganeshnikumbh.splinecustomhttpdispatcher
+package io.github.lineageco.splinecustomhttpdispatcher
 
 import org.apache.commons.configuration.Configuration
 import org.apache.spark.internal.Logging
@@ -22,7 +22,7 @@ import za.co.absa.spline.harvester.dispatcher.LineageDispatcher
 class AzureHttpLineageDispatcher(restClient: AzureRestClient, apiVersionOption: Option[Version], requestCompressionOption: Option[Boolean])
   extends LineageDispatcher
     with Logging {
-  import io.github.ganeshnikumbh.splinecustomhttpdispatcher.AzureHttpLineageDispatcher._
+  import io.github.lineageco.splinecustomhttpdispatcher.AzureHttpLineageDispatcher._
   import za.co.absa.spline.harvester.json.HarvesterJsonSerDe.impl._
     def this(dispatcherConfig: AzureHttpLineageDispatcherConfig) =
     this(
@@ -81,6 +81,7 @@ class AzureHttpLineageDispatcher(restClient: AzureRestClient, apiVersionOption: 
 object AzureHttpLineageDispatcher extends Logging {
   private def createDefaultRestClient(config: AzureHttpLineageDispatcherConfig): AzureRestClient = {
     logInfo(s"Producer URL: ${config.producerUrl}")
+    
     AzureRestClient(
       Http,
       config.producerUrl,
@@ -89,6 +90,8 @@ object AzureHttpLineageDispatcher extends Logging {
       config.secHeader
     )
   }
+  
+  
 
   private def getServerHeaders(restClient: AzureRestClient): Map[String, IndexedSeq[String]] = {
     val unableToConnectMsg = "Spark Agent was not able to establish connection to Spline Gateway"

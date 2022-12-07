@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package io.github.ganeshnikumbh.splinecustomhttpdispatcher
+package io.github.lineageco.splinecustomhttpdispatcher
 
 import za.co.absa.commons.config.ConfigurationImplicits._
 import za.co.absa.commons.version.Version

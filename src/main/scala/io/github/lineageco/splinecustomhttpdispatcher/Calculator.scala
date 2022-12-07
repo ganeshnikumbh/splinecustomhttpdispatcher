@@ -1,4 +1,4 @@
-package io.github.ganeshnikumbh.splinecustomhttpdispatcher
+package io.github.lineageco.splinecustomhttpdispatcher
 
 class Calculator {
   def add(a: Int, b: Int) = a + b
