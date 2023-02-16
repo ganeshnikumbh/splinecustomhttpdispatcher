@@ -14,23 +14,25 @@
  * limitations under the License.
  */
 
-package io.github.lineageco.splinecustomhttpdispatcher
+package org.abnamro.dmp.mdc.splinecustomhttpdispatcher
 
+import org.apache.commons.configuration.Configuration
 import za.co.absa.commons.config.ConfigurationImplicits._
 import za.co.absa.commons.version.Version
+import za.co.absa.spline.harvester.dispatcher.ProducerApiVersion
+import org.abnamro.dmp.mdc.splinecustomhttpdispatcher.AzureHttpLineageDispatcherConfig._
 
 import scala.concurrent.duration._
-import za.co.absa.spline.harvester.dispatcher.httpdispatcher.ProducerApiVersion
-import AzureHttpLineageDispatcherConfig._
-import org.apache.commons.configuration.Configuration
 
-object AzureHttpLineageDispatcherConfig {
+object AzureHttpLineageDispatcherConfig{
+  val AuthorizationProperty = "authentication"
   val ProducerUrlProperty = "producer.url"
   val ConnectionTimeoutMsKey = "timeout.connection"
   val ReadTimeoutMsKey = "timeout.read"
+  val DisableSslValidation = "disableSslValidation"
   val ApiVersion = "apiVersion"
   val RequestCompression = "requestCompression"
-  val securityHeaderKey = "securityHeader.key"
+  val Header = "header"
 
   def apply(c: Configuration) = new AzureHttpLineageDispatcherConfig(c)
 }
@@ -39,14 +41,17 @@ class AzureHttpLineageDispatcherConfig(config: Configuration) {
   val producerUrl: String = config.getRequiredString(ProducerUrlProperty)
   val connTimeout: Duration = config.getRequiredLong(ConnectionTimeoutMsKey).millis
   val readTimeout: Duration = config.getRequiredLong(ReadTimeoutMsKey).millis
-  val secHeader: String = config.getRequiredString(securityHeaderKey)
+  val disableSslValidation: Boolean = config.getRequiredBoolean(DisableSslValidation)
+  val headers: Map[String, String] = config.subset(Header).toMap[String]
+  val authentication: Map[String, String] = config.subset(AuthorizationProperty).toMap[String]
 
-  // def secHeader: Option[String] = config.getOptionalString(securityHeaderKey)
   def apiVersionOption: Option[Version] = config.getOptionalString(ApiVersion).map(stringToVersion)
+
   def requestCompressionOption: Option[Boolean] = config.getOptionalBoolean(RequestCompression)
 
   private def stringToVersion(str: String): Version = str.trim match {
     case "LATEST" => ProducerApiVersion.SupportedApiRange.Max
     case s => Version.asSimple(s)
   }
+
 }

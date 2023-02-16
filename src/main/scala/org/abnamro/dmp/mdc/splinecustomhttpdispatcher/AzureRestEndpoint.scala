@@ -14,28 +14,56 @@
  * limitations under the License.
  */
 
-package io.github.lineageco.splinecustomhttpdispatcher
+package org.abnamro.dmp.mdc.splinecustomhttpdispatcher
+import org.apache.spark.internal.Logging
 
 import org.apache.http.HttpHeaders
 import scalaj.http.{HttpRequest, HttpResponse}
 import za.co.absa.commons.lang.ARM.using
 import za.co.absa.spline.harvester.dispatcher.httpdispatcher.HttpConstants.Encoding
+import org.abnamro.dmp.mdc.splinecustomhttpdispatcher.AzureRestEndpoint._
 
 import java.io.ByteArrayOutputStream
 import java.util.zip.GZIPOutputStream
 import javax.ws.rs.HttpMethod
-import io.github.lineageco.splinecustomhttpdispatcher.AzureRestEndpoint._
+import scalaj.http._
 
-class AzureRestEndpoint(val request: HttpRequest) {
+class AzureRestEndpoint(val request: HttpRequest,val authentication: Map[String, String]) extends Logging {
 
-  
-  def head(): HttpResponse[String] = request
-    .method(HttpMethod.HEAD)
+  def getAccessToken(authentication: Map[String, String]): String = {
+  val clientId: String= authentication("clientId")
+  val clientSecret: String= authentication("clientSecret")
+  val tenantId: String= authentication("tenantId")
+  val scope: String= authentication("scope")
+  val tokenEndpoint = s"https://login.microsoftonline.com/$tenantId/oauth2/v2.0/token"
+  val response = Http(tokenEndpoint)
+    .postForm(Seq(
+      "client_id" -> clientId,
+      "client_secret" -> clientSecret,
+      "grant_type" -> "client_credentials",
+      "scope" -> scope.concat("/.default")
+    )).options(HttpOptions.allowUnsafeSSL,HttpOptions.readTimeout(5000))
     .asString
+
+  val responseJson = response.body
+  import scala.util.matching.Regex
+  val pattern: Regex = """"access_token"\s*:\s*"([^"]+)"""".r
+
+  val accessToken = "Bearer ".concat(pattern.findFirstMatchIn(responseJson).map(_.group(1)).getOrElse(""))
+  accessToken
+}
+  
+  def head(): HttpResponse[String] = {
+    val requestnew = request.header("Authorization", getAccessToken(authentication)).method(HttpMethod.HEAD)
+    logInfo(requestnew.toString())
+    requestnew.asString
+  }
+  
 
   def post(data: String, contentType: String, enableRequestCompression: Boolean): HttpResponse[String] = {
     val jsonRequest = request
       .header(HttpHeaders.CONTENT_TYPE, contentType)
+      .header("Authorization", getAccessToken(authentication))
 
     if (enableRequestCompression && data.length > GzipCompressionLengthThreshold) {
       jsonRequest

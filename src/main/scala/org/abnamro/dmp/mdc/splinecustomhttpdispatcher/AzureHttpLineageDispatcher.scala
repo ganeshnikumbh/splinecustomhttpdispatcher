@@ -1,41 +1,62 @@
+/*
+ * Copyright 2019 ABSA Group Limited
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 
-package io.github.lineageco.splinecustomhttpdispatcher
+package org.abnamro.dmp.mdc.splinecustomhttpdispatcher
 
 import org.apache.commons.configuration.Configuration
 import org.apache.spark.internal.Logging
 import scalaj.http.{Http, HttpStatusException}
-import za.co.absa.commons.lang.OptionImplicits._
+import za.co.absa.commons.lang.extensions.TraversableExtension._
 import za.co.absa.commons.version.Version
+import za.co.absa.spline.harvester.dispatcher.ProducerApiVersion.SupportedApiRange
 import za.co.absa.spline.harvester.dispatcher.httpdispatcher.HttpConstants.Encoding
-import za.co.absa.spline.harvester.dispatcher.httpdispatcher.ProducerApiVersion.SupportedApiRange
 import za.co.absa.spline.harvester.dispatcher.httpdispatcher._
-import za.co.absa.spline.harvester.dispatcher.httpdispatcher.modelmapper.ModelMapper
-import za.co.absa.spline.harvester.dispatcher.httpdispatcher.rest.{RestClient, RestEndpoint}
+import za.co.absa.spline.harvester.dispatcher.modelmapper.ModelMapper
 import za.co.absa.spline.harvester.exception.SplineInitializationException
-import za.co.absa.spline.harvester.json.HarvesterJsonSerDe.impl._
-import za.co.absa.spline.producer.model.v1_1.{ExecutionEvent, ExecutionPlan}
+import za.co.absa.spline.producer.model.{ExecutionEvent, ExecutionPlan}
+
 import javax.ws.rs.core.MediaType
 import scala.util.Try
 import scala.util.control.NonFatal
 import za.co.absa.spline.harvester.dispatcher.LineageDispatcher
+import za.co.absa.spline.harvester.dispatcher.SplineHeaders
+import za.co.absa.spline.harvester.dispatcher.ProducerApiVersion
 
+/**
+ * AzureHttpLineageDispatcherConfig is responsible for sending the lineage data to spline gateway through producer API
+ */
 class AzureHttpLineageDispatcher(restClient: AzureRestClient, apiVersionOption: Option[Version], requestCompressionOption: Option[Boolean])
   extends LineageDispatcher
     with Logging {
-  import io.github.lineageco.splinecustomhttpdispatcher.AzureHttpLineageDispatcher._
+
+  import org.abnamro.dmp.mdc.splinecustomhttpdispatcher.AzureHttpLineageDispatcher._
   import za.co.absa.spline.harvester.json.HarvesterJsonSerDe.impl._
-    def this(dispatcherConfig: AzureHttpLineageDispatcherConfig) =
+
+  def this(dispatcherConfig: AzureHttpLineageDispatcherConfig) =
     this(
       AzureHttpLineageDispatcher.createDefaultRestClient(dispatcherConfig),
       dispatcherConfig.apiVersionOption,
       dispatcherConfig.requestCompressionOption
     )
-    def this(configuration: Configuration) = this(AzureHttpLineageDispatcherConfig(configuration))
 
-  private val executionPlansEndpoint = restClient.endpoint(AzureRESTResource.ExecutionPlans)
-  private val executionEventsEndpoint = restClient.endpoint(AzureRESTResource.ExecutionEvents)
+  def this(configuration: Configuration) = this(AzureHttpLineageDispatcherConfig(configuration))
 
-  private val serverHeaders: Map[String, IndexedSeq[String]] = getServerHeaders(restClient)
+  private val executionPlansEndpoint = restClient.endpoint(RESTResource.ExecutionPlans)
+  private val executionEventsEndpoint = restClient.endpoint(RESTResource.ExecutionEvents)
+
+  private lazy val serverHeaders: Map[String, IndexedSeq[String]] = getServerHeaders(restClient)
   private val apiVersion: Version = apiVersionOption.getOrElse(resolveApiVersion(serverHeaders))
 
   logInfo(s"Using Producer API version: ${apiVersion.asString}")
@@ -45,14 +66,18 @@ class AzureHttpLineageDispatcher(restClient: AzureRestClient, apiVersionOption: 
   private val requestCompressionSupported: Boolean =
     requestCompressionOption.getOrElse(resolveRequestCompression(serverHeaders))
 
+  override def name = "Http"
+
   override def send(plan: ExecutionPlan): Unit = {
-    val execPlanDTO = modelMapper.toDTO(plan)
-    sendJson(execPlanDTO.toJson, executionPlansEndpoint)
+    for (execPlanDTO <- modelMapper.toDTO(plan)) {
+      sendJson(execPlanDTO.toJson, executionPlansEndpoint)
+    }
   }
 
   override def send(event: ExecutionEvent): Unit = {
-    val eventDTO = modelMapper.toDTO(event)
-    sendJson(Seq(eventDTO).toJson, executionEventsEndpoint)
+    for (eventDTO <- modelMapper.toDTO(event)) {
+      sendJson(Seq(eventDTO).toJson, executionEventsEndpoint)
+    }
   }
 
   private def sendJson(json: String, endpoint: AzureRestEndpoint): Unit = {
@@ -77,27 +102,25 @@ class AzureHttpLineageDispatcher(restClient: AzureRestClient, apiVersionOption: 
   }
 }
 
-
 object AzureHttpLineageDispatcher extends Logging {
   private def createDefaultRestClient(config: AzureHttpLineageDispatcherConfig): AzureRestClient = {
     logInfo(s"Producer URL: ${config.producerUrl}")
-    
     AzureRestClient(
       Http,
       config.producerUrl,
       config.connTimeout,
       config.readTimeout,
-      config.secHeader
+      config.disableSslValidation,
+      config.headers,
+      config.authentication
     )
   }
-  
-  
 
   private def getServerHeaders(restClient: AzureRestClient): Map[String, IndexedSeq[String]] = {
     val unableToConnectMsg = "Spark Agent was not able to establish connection to Spline Gateway"
     val serverHasIssuesMsg = "Connection to Spline Gateway: OK, but the Gateway is not initialized properly! Check Gateway logs"
 
-    val statusEndpoint = restClient.endpoint(AzureRESTResource.Status)
+    val statusEndpoint = restClient.endpoint(RESTResource.Status)
     Try(statusEndpoint.head())
       .map {
         case resp if resp.is2xx =>
@@ -120,20 +143,20 @@ object AzureHttpLineageDispatcher extends Logging {
   }
 
   private def resolveRequestCompression(serverHeaders: Map[String, IndexedSeq[String]]): Boolean =
-    serverHeaders(SplineHttpHeaders.AcceptRequestEncoding)
+    serverHeaders(SplineHeaders.AcceptRequestEncoding)
       .exists(_.toLowerCase == Encoding.GZIP)
 
   private def resolveApiVersion(serverHeaders: Map[String, IndexedSeq[String]]): Version = {
     val serverApiVersions =
-      serverHeaders(SplineHttpHeaders.ApiVersion)
+      serverHeaders(SplineHeaders.ApiVersion)
         .map(Version.asSimple)
-        .asOption
+        .toNonEmptyOption
         .getOrElse(Seq(ProducerApiVersion.Default))
 
     val serverApiLTSVersions =
-      serverHeaders(SplineHttpHeaders.ApiLTSVersion)
+      serverHeaders(SplineHeaders.ApiLTSVersion)
         .map(Version.asSimple)
-        .asOption
+        .toNonEmptyOption
         .getOrElse(serverApiVersions)
 
     val apiCompatManager = ProducerApiCompatibilityManager(serverApiVersions, serverApiLTSVersions)
